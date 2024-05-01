@@ -1,0 +1,172 @@
+lab 7
+
+1. Display the food details that is not purchased by any of customers.
+
+SELECT p.pid, p.flavor, p.food, p.price
+FROM products p
+     LEFT JOIN item_list il ON p.pid=il.item
+WHERE il.item IS NULL;
+
+2. Show the customer details who had placed more than 2 orders on the same date.
+
+SELECT c.cid, c.fname, c.lname, r.rdate, COUNT(r.rno) AS order_count
+FROM receipts r
+     JOIN customers c ON r.cid=c.cid
+GROUP BY c.cid, c.fname, c.lname, r.rdate
+HAVING COUNT(r.rno)>2;
+
+3. Display the products details that has been ordered maximum by the customers. (use
+ALL)
+
+SELECT p.pid, p.flavor, p.food, p.price
+FROM products p
+WHERE(SELECT COUNT(*)FROM item_list il WHERE il.item=p.pid)>=ALL(SELECT COUNT(*)FROM item_list GROUP BY item);
+
+4. Show the number of receipts that contain the product whose price is more than theaverage price of its food type.
+
+WITH AvgPrices AS (SELECT food, AVG(price) AS avg_price FROM products GROUP BY food), ProductsAboveAvg AS (SELECT p.pid
+                                                                                                           FROM products p
+                                                                                                                JOIN AvgPrices ap ON p.food=ap.food
+                                                                                                           WHERE p.price>ap.avg_price)
+SELECT COUNT(DISTINCT rno) AS Number_Of_Receipts
+FROM item_list
+WHERE item IN(SELECT pid FROM ProductsAboveAvg);
+
+5. Display the customer details along with receipt number and date for the receipts that
+are dated on the last day of the receipt month.
+
+SELECT c.cid, c.fname, c.lname, r.rno, r.rdate
+FROM customers c
+     JOIN receipts r ON c.cid=r.cid
+WHERE r.rdate=(SELECT MAX(rdate)FROM receipts);
+
+6. Display the receipt number(s) and its total price for the receipt(s) that contain Twist
+as one among five items. Include only the receipts with total price more than $25.
+
+SELECT il.rno, SUM(p.price) AS total_price
+FROM item_list il
+     JOIN products p ON il.item=p.pid
+     JOIN(SELECT distinct rno
+          FROM item_list il
+               JOIN products p ON il.item=p.pid
+          WHERE p.flavor LIKE '%Twist%') AS containing_twist ON il.rno=containing_twist.rno
+GROUP BY il.rno
+HAVING SUM(p.price)>25;
+
+7. Display the details (customer details, receipt number, item) for the product that was
+purchased by the least number of customers.
+
+WITH CustomerCounts AS (SELECT p.pid, COUNT(DISTINCT r.cid) AS num_customers
+                        FROM products p
+                             JOIN item_list il ON p.pid=il.item
+                             JOIN receipts r ON il.rno=r.rno
+                        GROUP BY p.pid), MinCustomerCount AS (SELECT MIN(num_customers) AS min_customers FROM CustomerCounts), LeastPurchasedProducts AS (SELECT pid
+                                                                                                                                                          FROM CustomerCounts
+                                                                                                                                                          WHERE num_customers=(SELECT min_customers FROM MinCustomerCount))
+SELECT c.cid, c.fname, c.lname, r.rno, il.item
+FROM customers c
+     JOIN receipts r ON c.cid=r.cid
+     JOIN item_list il ON r.rno=il.rno
+     JOIN LeastPurchasedProducts lpp ON il.item=lpp.pid;
+
+8. Display the customer details along with the receipt number who ordered all
+theflavors of Meringue in the same receipt.
+
+WITH MeringueFlavors AS (SELECT pid FROM products WHERE food='Meringue'), TotalFlavors AS (SELECT COUNT(*) AS total_flavors FROM MeringueFlavors), ReceiptsWithMeringue AS (SELECT il.rno, p.pid
+                                                                                                                                                                            FROM item_list il
+                                                                                                                                                                                 JOIN products p ON il.item=p.pid
+                                                                                                                                                                            WHERE p.food='Meringue'), QualifiedReceipts AS (SELECT rno
+                                                                                                                                                                                                                            FROM ReceiptsWithMeringue
+                                                                                                                                                                                                                            GROUP BY rno
+                                                                                                                                                                                                                            HAVING COUNT(DISTINCT pid)=(SELECT total_flavors FROM TotalFlavors))
+SELECT c.cid, c.fname, c.lname, r.rno
+FROM customers c
+     JOIN receipts r ON c.cid=r.cid
+WHERE r.rno IN(SELECT rno FROM QualifiedReceipts);
+
+9. Display the product details of both Pie and Bear Claw.
+
+SELECT pid, flavor, food, price
+FROM products
+WHERE food IN ('Pie', 'Bear Claw');
+
+10. Display the customers details who haven't placed any orders.
+
+SELECT c.cid, c.fname, c.lname
+FROM customers c
+     LEFT JOIN receipts r ON c.cid=r.cid
+WHERE r.cid IS NULL;
+
+11. Display the food that has the same flavor as that of the common flavor between
+the Meringue and Tart.
+
+WITH CommonFlavors AS (SELECT p1.flavor FROM products p1 WHERE p1.food='Meringue'
+                       INTERSECT
+                       SELECT p2.flavor FROM products p2 WHERE p2.food='Tart')
+SELECT DISTINCT p.food, p.flavor
+FROM products p
+     JOIN CommonFlavors cf ON p.flavor=cf.flavor;
+    
+12. Create a view named Blue_Flavor, which display the product details (product
+id, food, price) of Blueberry flavor.
+
+CREATE VIEW Blue_Flavor
+AS
+SELECT pid, food, price FROM products WHERE flavor='Blueberry';
+
+13. Create a view named Cheap_Food, which display the details (product id, flavor,
+food, price) of products with price lesser than $1. Ensure that, the price of these
+food(s) should never rise above $1 through view.
+
+CREATE VIEW Cheap_Food
+AS
+SELECT pid, flavor, food, price FROM products WHERE price<1.00;
+
+DELIMITER $$
+
+CREATE TRIGGER Ensure_Cheap_Food_Price
+BEFORE UPDATE ON products
+FOR EACH ROW
+BEGIN
+    IF OLD.price < 1 AND NEW.price >= 1 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot increase the price of products listed as Cheap Food to $1 or more.';
+    END IF;
+END$$
+
+DELIMITER ;
+
+INSERT INTO products(pid, flavor, food, price)
+VALUES(999, 'Test Flavor', 'Test Food', 0.99);
+
+UPDATE products SET price=1.10 WHERE pid=999;
+
+14. Create a view called Hot_Food that show the product id and its quantity where
+the same product is ordered more than once in the same receipt.
+
+CREATE VIEW Hot_Food
+AS
+SELECT rno, item AS pid, COUNT(item) AS quantity
+FROM item_list
+GROUP BY rno, item
+HAVING COUNT(item)>1;
+
+15. Create a view named Pie_Food that will display the details (customer lname,
+flavor, receipt number and date, ordinal) who had ordered the Pie food with receipt
+details.
+
+CREATE VIEW Pie_Food
+AS
+SELECT c.lname, p.flavor, r.rno, r.rdate, il.ordinal
+FROM customers c
+     JOIN receipts r ON c.cid=r.cid
+     JOIN item_list il ON r.rno=il.rno
+     JOIN products p ON il.item=p.pid
+WHERE p.food='Pie';
+
+16. Create a view Cheap_View from Cheap_Food that shows only the product id,
+flavor and food.
+
+CREATE VIEW Cheap_View
+AS
+SELECT pid, flavor, food FROM Cheap_Food;
