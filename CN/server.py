@@ -40,3 +40,32 @@ def start():
             f"[SERVER] Total active thread(s): {threading.active_count() - 1}")
 print("[SERVER] Starting...")
 start()
+
+
+
+def handle_request(new_connection,client_ip):
+    print()
+    connected=True
+    while connected:
+        msg_length=new_connection.recvb(Header_size).decode(format)
+        if msg_length:
+            msg_length=int(msg_length)
+            actual_message=new_connection.recv(msg_length),decode(format)
+            if(actual_message="exit"):
+                print()
+                new_connection.close()
+                break
+            peint(
+
+def start():
+    server.listen()
+    print()
+    while True:
+        new_connection,client_ip=server.accept()
+        thread=threading.Thread(
+            target=handle_request,args=(new_connection,client_ip))
+        thread.start()
+        print(thread.active_count()-1)
+
+print("")
+start()

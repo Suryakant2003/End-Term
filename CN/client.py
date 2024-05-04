@@ -4,7 +4,6 @@ HEADER_SIZE = 64
 PORT = 3000
 FORMAT = "utf-8"
 DISCONNECT_MESSAGE = "exit"
-# run server.py to check the ip address and update as required
 SERVER_IP_ADDRESS = input("Enter Server Address: ")
 REMOTE_ADDRESS = (SERVER_IP_ADDRESS, PORT)
 
